@@ -1211,8 +1211,40 @@ void Adafruit_GFX::drawChar(int16_t x, int16_t y, unsigned char c,
     // this (a canvas object type for MCUs that can afford the RAM and
     // displays supporting setAddrWindow() and pushColors()), but haven't
     // implemented this yet.
-
+    #define FAST_TEXT
     startWrite();
+    #ifdef FAST_TEXT
+    uint16_t hpc = 0; // Horizontal foreground pixel count
+    for(yy=0; yy<h; yy++) {
+      for(xx=0; xx<w; xx++) {
+        if(bit == 0) {
+          bits = pgm_read_byte(&bitmap[bo++]);
+          bit  = 0x80;
+        }
+        if(bits & bit) hpc++;
+        else {
+          if (hpc) {
+            if(size_x == 1) {
+              drawFastHLine(x+xo+xx-hpc, y+yo+yy, hpc, color);
+            } else {
+              fillRect(x+(xo16+xx-hpc)*size_x, y+(yo16+yy)*size_x, size_x*hpc, size_x, color);
+            }
+            hpc=0;
+          }
+        }
+        bit >>= 1;
+      }
+      // Draw pixels for this line as we are about to increment yy
+      if (hpc) {
+        if(size_x == 1) {
+          drawFastHLine(x+xo+xx-hpc, y+yo+yy, hpc, color);
+        } else {
+          fillRect(x+(xo16+xx-hpc)*size_x, y+(yo16+yy)*size_x, size_x*hpc, size_x, color);
+        }
+        hpc=0;
+      }
+    }
+#else
     for (yy = 0; yy < h; yy++) {
       for (xx = 0; xx < w; xx++) {
         if (!(bit++ & 7)) {
@@ -1220,7 +1252,8 @@ void Adafruit_GFX::drawChar(int16_t x, int16_t y, unsigned char c,
         }
         if (bits & 0x80) {
           if (size_x == 1 && size_y == 1) {
-            writePixel(x + xo + xx, y + yo + yy, color);
+            // writePixel(x + xo + xx, y + yo + yy, color);
+            drawPixel(x + xo + xx, y + yo + yy, color);
           } else {
             writeFillRect(x + (xo16 + xx) * size_x, y + (yo16 + yy) * size_y,
                           size_x, size_y, color);
@@ -1229,6 +1262,7 @@ void Adafruit_GFX::drawChar(int16_t x, int16_t y, unsigned char c,
         bits <<= 1;
       }
     }
+    #endif
     endWrite();
 
   } // End classic vs custom font
